@@ -1,0 +1,313 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	
+    <title>Homework 5</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   
+</head>
+<body>
+<center><canvas id="glcanvas" width="400" height="400" <="" canvas=""></canvas></center>
+<script src="glMatrix.js"></script>
+
+<script>
+loadText = function (file) {
+
+    var request = new XMLHttpRequest();
+    request.open("GET", file, false); // Synchronous. This makes me a terrible person
+    request.overrideMimeType("text/plain");
+    request.send();
+    return request.responseText;   
+}
+
+function top_verts() {
+  var top_json = JSON.parse( loadText("top.json"));
+
+
+
+  var answer = [];
+  
+  for(f=0; f < top_json["faces"].length ; f++){
+      if (f%11 == 0){
+        answer.push(top_json["vertices"][ top_json["faces"][f+1] ]);
+        answer.push(top_json["vertices"][ top_json["faces"][f+2] ]);
+        answer.push(top_json["vertices"][ top_json["faces"][f+3] ]);
+
+        answer.push(top_json["uvs"][0][ top_json["faces"][f+5] ]);
+        answer.push(top_json["uvs"][0][ top_json["faces"][f+6] ]);
+        answer.push(top_json["uvs"][0][ top_json["faces"][f+7] ]);
+
+
+        answer.push(top_json["normals"][ top_json["faces"][f+8] ]);
+        answer.push(top_json["normals"][ top_json["faces"][f+9] ]);
+        answer.push(top_json["normals"][ top_json["faces"][f+10] ]);
+
+      }
+  }
+
+  return answer;
+}
+
+function top_indices() {
+  var top_json = JSON.parse( loadText("top.json"));
+
+  var answer = [];
+  
+  for(f=0; f < top_json["faces"].length ; f++){
+    answer.push(f);
+  }
+  return answer;
+}
+
+function bottom_verts() {
+  var top_json = JSON.parse( loadText("bottom.json"));
+
+  var answer = [];
+  var v_count = 0;
+  var uv_count = 0;
+  var norm_count = 0;
+
+  for(f=0; f < bottom_json["metadata"]["faces"].length * 3 ; f++){
+      answer.push(bottom_json["vertices"][v_count]);
+      answer.push(bottom_json["vertices"][v_count + 1]);
+      answer.push(bottom_json["vertices"][v_count + 2]);
+      v_count += 3;
+  
+    
+      answer.push(bottom_json["uvs"][uv_count]);
+      answer.push(bottom_json["uvs"][uv_count + 1]);
+      uv_count += 2;
+    
+ 
+      answer.push(bottom_json["normals"][norm_count]);
+      answer.push(bottom_json["normals"][norm_count + 1]);
+      answer.push(bottom_json["normals"][norm_count + 2]);
+      norm_count += 3;
+  }
+  return answer;
+}
+
+function bottom_indices() {
+  var bottom_json = JSON.parse( loadText("top.json"));
+
+  var answer = [];
+  
+  for(f=0; f < bottom_json["metadata"]["faces"].length * 3 ; f++){
+    answer.push(f);
+  }
+  return answer;
+}
+// INITIALIZE 
+// get canvas from webpage
+var canvas = document.getElementById("glcanvas");
+
+// set canvas to use webgl functions (as opposed to, say, 2D line drawing or something)
+var gl;
+try {
+    gl = canvas.getContext("webgl");
+    gl.viewportWidth = canvas.width;
+    gl.viewportHeight = canvas.height;
+    gl.clearColor(1.0, 1.0, 1.0, 1.0);
+    gl.enable(gl.DEPTH_TEST);
+ } 
+ catch (e) {
+    alert("Could not initialise WebGL.");
+ }
+
+// DEFINE OBJECT'S MATRIX, VERTEX BUFFER AND SHADER PROGRAM:
+// cube's individual transform - this is what we'll rotate (in tick()) to spin the cube
+obj = {};
+obj.matrix = mat4.create();
+mat4.identity(obj.matrix);
+obj.matrixOrig = mat4.create();
+mat4.identity(obj.matrixOrig);
+
+modelMat = mat4.create();
+mat4.identity(modelMat);
+
+// this function should parse top.json and return a vertex array
+var vertArray = top_verts();
+ 
+// allocate a block of GPU memory to hold the vertex array
+obj.vertexBuffer = gl.createBuffer(); 
+// make it active
+gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertexBuffer);
+// send the data
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertArray), gl.STATIC_DRAW); 
+
+
+
+// this function should parse top.json and return an index array
+var indices = top_indices();
+console.log("vertArray length: ", vertArray.length);
+console.log("indices length: ", indices.length);
+
+			
+// GL expects ints to be ints (go figure!) and Javascript only has one number type, so...
+indices = new Uint16Array(indices);
+// allocate a block of GPU memory to hold the index array
+obj.indexBuffer = gl.createBuffer();
+// make it active
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indexBuffer);
+// send the data
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW); 
+// we'll need the number of indices for the draw call later
+obj.indexBuffer.numItems = indices.length;
+
+//MAKE A SECOND OBJECT THE SAME WAY FROM bottom.json
+
+
+// BUILD VERTEX AND FRAGMENT SHADERS, LINK TOGETHER INTO A SHADER PROGRAM:
+
+// create a vertex shader
+var vertShader = gl.createShader(gl.VERTEX_SHADER);
+// you'll almost always specify this in a separate text file
+var vertShaderStr = loadText("mvp_uv.vs");
+
+// specify the previous string as being the source code for the vertex shader
+gl.shaderSource(vertShader, vertShaderStr);
+gl.compileShader(vertShader);
+if (! gl.getShaderParameter(vertShader, gl.COMPILE_STATUS))
+    alert(gl.getShaderInfoLog(vertShader));
+  
+//create a fragment shader
+var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+// inline shader programming is gross and only used here for instructional purposes
+var fragShaderStr = loadText("color_uv.fs");
+
+gl.shaderSource(fragShader, fragShaderStr);
+gl.compileShader(fragShader);
+if (! gl.getShaderParameter(fragShader, gl.COMPILE_STATUS))
+    alert(gl.getShaderInfoLog(fragShader));
+
+// create an empty shader program
+obj.shaderProgram = gl.createProgram();
+// attach and link our compiled shaders into one program
+gl.attachShader(obj.shaderProgram, vertShader);
+gl.attachShader(obj.shaderProgram, fragShader);
+gl.linkProgram(obj.shaderProgram);
+
+if (! gl.getProgramParameter(obj.shaderProgram, gl.LINK_STATUS))
+    alert("Could not initialise shaders");
+
+// find, store, and enable the attribute variables of the shader program (position, normal vector, color)
+// CHANGE THIS FOR THE VERTEX ATTRIBUTES OF THE CRATE MESHES - POSTION, TEXTURE COORDINATES, NORMAL VECTOR
+
+
+
+obj.shaderProgram.vertexPositionAttribute = gl.getAttribLocation(obj.shaderProgram, "aVertexPosition");
+gl.enableVertexAttribArray(obj.shaderProgram.vertexPositionAttribute);
+
+
+obj.shaderProgram.vertexUVAttribute = gl.getAttribLocation(obj.shaderProgram, "aVertexUV");
+gl.enableVertexAttribArray(obj.shaderProgram.vertexUVAttribute);
+
+
+obj.shaderProgram.vertexNormalAttribute = gl.getAttribLocation(obj.shaderProgram, "aVertexNormal");
+gl.enableVertexAttribArray(obj.shaderProgram.vertexNormalAttribute);
+
+
+
+
+//find and store the uniform variables of the shader program
+obj.shaderProgram.pMatrixUniform=gl.getUniformLocation(obj.shaderProgram, "uPMatrix");
+obj.shaderProgram.vMatrixUniform=gl.getUniformLocation(obj.shaderProgram, "uVMatrix");
+obj.shaderProgram.oMatrixUniform=gl.getUniformLocation(obj.shaderProgram, "uOMatrix");
+// END SETUP
+
+ console.log(obj);
+
+
+
+// Draw function for a single object
+function drawObject(gl, obj) {
+      
+	  
+	  // set the active shader to the object's material
+      gl.useProgram(obj.shaderProgram);
+	  // set our object's array of verts to be active
+      gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertexBuffer);
+	  // set our object's array of indices to be active
+	    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indexBuffer);
+
+      // Explain how the vertex array is structured for the "attribute" variables in the shader
+	  // FIX THIS FOR OUR NEW VERTEX ATTRIBUTES - 3 FLOATS FOR POSITION, 2 FLOATS FOR UVs, 3 FLOATS FOR NORMAL VECTOR
+	  // NOTE ATTRIBUTE NAMES!
+      gl.vertexAttribPointer( obj.shaderProgram.vertexPositionAttribute, //location of attribute in shader, stored on setup
+                              3, //number of elements (x, y ,z for position)
+                              gl.FLOAT, //data type of each component in the array
+                              false, //fixed-point data values should be normalized (true) or converted directly as fixed-point values (false)
+                              8 * Float32Array.BYTES_PER_ELEMENT, //stride (8 floats total in our vertex)
+                              0 //offset for position (position is the first three floats of the nine, so no offset)
+                              );
+      
+      
+      gl.vertexAttribPointer( 3, // kept giving warnings since vertexUVAttribute was unused and therefore -1 so changed to constant
+                              3, //number of uv elements (s,t)
+                              gl.FLOAT, 
+                              false, 
+                              8 * Float32Array.BYTES_PER_ELEMENT, //stride  
+                              3 * Float32Array.BYTES_PER_ELEMENT //offset for UV (second 2 floats of the nine, so offset of 3 floats)
+                              );
+      
+      gl.vertexAttribPointer( 6,  // kept giving warnings since vertexUVAttribute was unused and therefore -1 so changed to constant
+                              3, //number of normal vector elements (x, y, z)
+                              gl.FLOAT, 
+                              false, 
+                              8 * Float32Array.BYTES_PER_ELEMENT, //stride 
+                              5 * Float32Array.BYTES_PER_ELEMENT //offset for normal (thrid three floats of the nine, so offset of 5 floats)
+                              );
+
+
+
+							  
+	  // Set the uniform variables for the shader program. Stuff that's the same for all verts in this mesh (like textures, time, etc.)
+	  // in this case, it's the cube's transform, the view matrix, and the perspective matrix
+	  var view = mat4.create();
+	  mat4.identity(view);
+	  var cam = mat4.create();
+	  mat4.identity(cam);
+	  // move the camera 5 units back. Probably should be doing this in update :-/
+	  mat4.translate(cam, vec3.create([0,1,12]));
+	  
+	  //REMEMBER: View matrix isn't the camera transform! It's the *inverse* of the camera transform.
+	  mat4.inverse(cam, view); //inverts cam, stores in view
+	  
+	  // projection matrix for a perspective camera
+	  var proj = mat4.create();
+	  mat4.identity(proj);
+	  mat4.perspective(45, 1, .1, 20, proj);
+	  	  
+	  //send up the current uniform variables to their stored locations
+	  gl.uniformMatrix4fv(obj.shaderProgram.pMatrixUniform, false, proj);
+	  gl.uniformMatrix4fv(obj.shaderProgram.vMatrixUniform, false, view);
+    gl.uniformMatrix4fv(obj.shaderProgram.oMatrixUniform, false, obj.matrix);
+
+	  //finally, the actual draw call
+	  gl.drawElements(gl.TRIANGLES, obj.indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+}
+   
+// MASTER LOOP
+var tick = function() {
+		  
+   	//UPDATE SCENE
+   	mat4.rotateX(modelMat, 1/60);
+   	mat4.rotateY(modelMat, 1/60);
+	
+	obj.matrix = mat4.multiply(modelMat, obj.matrixOrig);
+	//obj2.matrix = mat4.multiply(modelMat, obj2.matrixOrig);
+	
+
+   	//DRAW SCENE
+    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+   	drawObject(gl, obj);
+	//drawObject(gl, obj2);
+
+   	// call this function again in ~1/60th of a second
+   	requestAnimationFrame(tick);
+};
+
+// let's get started!
+tick();
+</script>
+
+</body></html>

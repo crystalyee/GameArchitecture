@@ -1,0 +1,276 @@
+
+<!-- saved from url=(0062)http://www.cogsci.rpi.edu/public_html/destem/gamearch/hw2.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<title>Game Architecture Examples</title>
+<link rel="stylesheet" href="http://www.cogsci.rpi.edu/public_html/destem/gamearch/css/bijou.min.css">
+<style type="text/css">
+  body{
+    margin-top:60px;
+  }
+  .light{
+    background:#CCC;
+    color:#333;
+  }
+  .grid{
+    text-align:center;
+    font-size:10px;
+  }
+  .banner{
+    text-align:center;
+    padding:10px 0;
+  }
+  .table{
+    margin-bottom:35px;
+  }
+  .banner button{
+    margin-top:7px;
+  }
+  .divider{
+    width:100%;
+    background:#CCC;
+    height:1px;
+    margin:25px 0;
+  }
+</style>
+</head><body onload="start()">
+    <div class="container">
+      <div class="banner row">
+        <div class="span ten">
+          <h4>Game Architecture HW 2</h4>
+        </div>
+      </div>
+	  <div class="divider"></div>
+      <div class="grid">
+        <div class="row">
+          <div class="span four"><h4 align="left">
+			  Please use degrees for H, P and R values.
+		  <br><br>
+				  
+				    
+			</h4>
+
+		  </div>
+<div class='grid'>
+        <div class='row'>
+          <div class='span four'><h4 align="center">          
+            X : <input type="text" id="xTrans" value="0" size="6" maxlength="6" />
+            Y : <input type="text" id="yTrans" value="0" size="6" maxlength="6" />
+            Z : <input type="text" id="zTrans" value="0" size="6" maxlength="6" /><br/>
+            H:  <input type="text" id="hRot"   value="0" size="6" maxlength="6" />
+            P : <input type="text" id="pRot"   value="0" size="6" maxlength="6" />
+            R : <input type="text" id="rRot"   value="0" size="6" maxlength="6" /><br/>
+            S : <input type="text" id="scale"  value="1" size="6" maxlength="6" /><br/>
+            
+             
+            <br /><div id="printMatrix"></div>
+          </h4></div>
+		  <div class="span six">
+			  <center><canvas id="cubeCanvas" width="400" height="400" <="" canvas=""></canvas></center>
+		  </div>
+        </div>
+      </div>
+    </div>
+<center>
+
+<script>
+
+   // GET THE CANVAS ELEMENT AND ITS DRAWING CONTEXT FROM THE DOCUMENT
+
+   var canvas = document.getElementById('cubeCanvas');
+   var context = canvas.getContext('2d');
+   
+   // GET THE DIMENSIONS OF THE CANVAS
+
+   var w = canvas.width, h = canvas.height;
+
+   // THE VERTICES OF A UNIT CUBE
+
+   var pts = [[-1,-1,-1],[ 1,-1,-1],[-1, 1,-1],[ 1, 1,-1],
+              [-1,-1, 1],[ 1,-1, 1],[-1, 1, 1],[ 1, 1, 1]];
+
+   // THE EDGES OF A UNIT CUBE (INDEXING INTO THE VERTICES)
+
+   var edges = [[0,1],[2,3],[4,5],[6,7],
+                [0,2],[1,3],[4,6],[5,7],
+		            [0,4],[1,5],[2,6],[3,7]];
+
+   // YOUR FUNCTION THAT GETS CALLED EACH ANIMATION FRAME
+
+   function animate() {
+
+      // CLEAR THE ENTIRE CANVAS
+
+      context.fillStyle = '#ffffff';
+      context.beginPath();
+      context.moveTo(0,0);
+      context.lineTo(w,0);
+      context.lineTo(w,h);
+      context.lineTo(0,h);
+      context.fill();
+	  
+      // SET THE DRAWING COLOR TO BLACK
+
+      context.strokeStyle = '#000000';
+
+      // CREATE THE MATRIX TRANSFORM FOR THIS ANIMATION FRAME.
+
+      ////////////////////////////////////////////////////////////
+	  //**********************************************************
+
+      // NOTE: THIS IS THE PART THAT YOU WILL BE REPLACING WITH
+      // MORE GENERAL KINDS OF TRANSFORMATIONS.
+
+      var x = Math.cos(time) / 2;
+      var y = Math.sin(time) / 2;
+      var z = Math.sin(time * 2);
+
+      x = 1;
+      y = 1;
+      z = 1;
+      
+
+      var xTrans = document.getElementById('xTrans').value;
+      var yTrans = document.getElementById('yTrans').value;
+      var zTrans = document.getElementById('zTrans').value;
+      var hRot = document.getElementById('hRot').value; //h and y are taken
+      var pRot = document.getElementById('pRot').value;
+      var rRot = document.getElementById('rRot').value;
+      var scale = document.getElementById('scale').value;
+
+      // convert from degrees to radians
+      hRot = toRadians(hRot);
+      pRot = toRadians(pRot);
+      rRot = toRadians(rRot);
+
+      var matrix = [ 1,0,0,0, 
+                     0,1,0,0, 
+                     0,0,1,0, 
+                     x,y,z,1 ];
+
+      var hRotMatrix = [ 1, 0, 0, 0, 
+                         0, Math.cos(hRot), -1 * Math.sin(hRot), 0,
+                         0, Math.sin(hRot), Math.cos(hRot), 0,
+                         0, 0, 0, 1];
+
+      var pRotMatrix = [ Math.cos(pRot), 0, Math.sin(pRot), 0, 
+                         0, 1, 0, 0,
+                         -1 * Math.sin(pRot), 0, Math.cos(pRot), 0,
+                         0, 0, 0, 1];
+
+      var rRotMatrix = [ Math.cos(rRot), -1 * Math.sin(rRot), 0, 0, 
+                         Math.sin(rRot), Math.cos(rRot), 0, 0,
+                         0, 0, 1, 0,
+                         0, 0, 0, 1];
+
+      var scaleMatrix = [ scale, 0, 0, 0, 
+                          0, scale, 0, 0,
+                          0, 0, scale, 0,
+                          0, 0, 0, 1 ];
+
+      matrix = matrixMult(matrix, scaleMatrix);
+      matrix = matrixMult(matrix, hRotMatrix);  
+      matrix = matrixMult(matrix, pRotMatrix); 
+      matrix = matrixMult(matrix, rRotMatrix); 
+      matrix[11] = matrix[11] * xTrans;
+      matrix[12] = matrix[12] * yTrans;
+      matrix[13] = matrix[13] * zTrans;
+
+
+      //**********************************************************
+	  ////////////////////////////////////////////////////////////
+
+
+      // LOOP THROUGH THE EDGES OF THE CUBE
+
+      for (var i = 0 ; i < edges.length ; i++) {
+
+         // TRANSFORM THE EDGE'S TWO ENDPOINTS BY THE MATRIX
+         var p0 = transform(pts[edges[i][0]], matrix);
+         var p1 = transform(pts[edges[i][1]], matrix);
+
+
+    		 // ADD DEPTH PERSPECTIVE
+    		 var a = depthPerspective(p0);
+    		 var b = depthPerspective(p1);
+
+	       // DRAW THE EDGE AS A 2D LINE ON THE CANVAS
+
+         context.beginPath();
+         context.moveTo(w/2 + w/4 * a[0], h/2 - w/4 * a[1]);
+         context.lineTo(w/2 + w/4 * b[0], h/2 - w/4 * b[1]);
+         context.stroke();
+      }
+   }
+
+   // TRANSFORM A POINT BY A MATRIX - NOTE THAT WE'RE NOT USING m[3], m[7], m[11] OR m[15]
+
+   function transform(p, m) {
+      var answer = [ m[0] * p[0] + m[4] * p[1] + m[ 8] * p[2] + m[12],
+               m[1] * p[0] + m[5] * p[1] + m[ 9] * p[2] + m[13],
+               m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+      return answer;
+   }
+
+   function matrixMult(a, b) {
+    var answer = [ a[0]*b[0] + a[1]*b[4] + a[2]*b[8] + a[3]*b[12],
+                   a[0]*b[1] + a[1]*b[5] + a[2]*b[9] + a[3]*b[13],
+                   a[0]*b[2] + a[1]*b[6] + a[2]*b[10] + a[3]*b[14],
+                   a[0]*b[3] + a[1]*b[7] + a[2]*b[11] + a[3]*b[15],
+                   a[4]*b[0] + a[5]*b[4] + a[6]*b[8] + a[7]*b[12],
+                   a[4]*b[1] + a[5]*b[5] + a[6]*b[9] + a[7]*b[13],
+                   a[4]*b[2] + a[5]*b[6] + a[6]*b[10] + a[7]*b[14],
+                   a[4]*b[3] + a[5]*b[7] + a[6]*b[11] + a[7]*b[15],
+                   a[8]*b[0] + a[9]*b[4] + a[10]*b[8] + a[11]*b[12],
+                   a[8]*b[1] + a[9]*b[5] + a[10]*b[9] + a[11]*b[13],
+                   a[8]*b[2] + a[9]*b[6] + a[10]*b[10] + a[11]*b[14],
+                   a[8]*b[3] + a[9]*b[7] + a[10]*b[11] + a[11]*b[15],
+                   a[12]*b[0] + a[13]*b[4] + a[14]*b[8] + a[15]*b[12],
+                   a[12]*b[1] + a[13]*b[5] + a[14]*b[9] + a[15]*b[13],
+                   a[12]*b[2] + a[13]*b[6] + a[14]*b[10] + a[15]*b[14],
+                   a[12]*b[3] + a[13]*b[7] + a[14]*b[11] + a[15]*b[15], ];
+
+    return answer;
+   }
+
+   function toRadians(x) {
+    return (Math.PI / 180) * x;
+   }
+
+
+
+   // APPLY A SIMPLE DEPTH PERSPECTIVE TRANSFORM
+
+   var focalLength = 8.0;
+
+   function depthPerspective(p) {
+      var pz = focalLength / (focalLength - p[2]);
+      return [p[0] * pz, p[1] * pz, pz];
+   }
+
+//--- BOILERPLATE CODE TO SUPPORT ANIMATED DRAWING ON AN HTML CANVAS ---
+
+   var startTime = (new Date()).getTime()
+   var time = startTime;
+   window.requestAnimFrame = (function(callback) {
+      return window.requestAnimationFrame ||
+             window.webkitRequestAnimationFrame ||
+             window.mozRequestAnimationFrame ||
+             window.oRequestAnimationFrame ||
+             window.msRequestAnimationFrame ||
+             function(callback) { window.setTimeout(callback, 1000/60); };
+   })();
+   function tick() {
+      time = ((new Date()).getTime() - startTime) / 1000;
+      animate();
+      requestAnimFrame(function() { tick(); });
+   }
+   tick();
+
+//----------------------------------------------------------------------
+
+</script>
+
+</center>
+
+<style class="ublock-postload-1ae7a5f130fc79b4fdb8a4272d9426b5">.container > .infoBoxList > .shareInfoBox
+{display:none !important;}</style></body></html>

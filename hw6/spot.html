@@ -1,0 +1,356 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	
+    <title>Getting Started with WebGL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   
+</head>
+<body>
+
+<br>
+<input type="range" id="dslider" min="0" max="100">
+<div id="doutput">depth edge: 0.5</div>
+
+<br>
+<input type="range" id="rslider" min="0" max="100">
+<div id="routput">roundness: 2.5</div>
+
+
+<center><canvas id="glcanvas" width="500" height="500" <="" canvas=""></canvas></center>
+<script src="glMatrix.js"></script>
+<script src="top.js"></script>
+<script src="bottom.js"></script>
+
+<script>
+
+var dvalue = 50 / 200.0;
+var rvalue = 50 / 20.0;
+
+window.addEventListener("load", function(){
+  var slider = document.getElementById("dslider");
+  slider.addEventListener("change", function(){
+    dvalue = this.value/200.0;
+    document.getElementById("doutput").innerHTML = "depth edge: " + dvalue;
+  });
+});
+
+window.addEventListener("load", function(){
+  var slider = document.getElementById("rslider");
+  slider.addEventListener("change", function(){
+    rvalue = this.value/20.0;
+    document.getElementById("routput").innerHTML = "roundness: " + rvalue;
+  });
+});
+
+loadText = function (file) {
+
+    var request = new XMLHttpRequest();
+    request.open("GET", file, false); // Synchronous. This makes me a terrible person
+	request.overrideMimeType("text/plain");
+	request.send();
+    return request.responseText;   
+}
+
+// INITIALIZE 
+// get canvas from webpage
+var canvas = document.getElementById("glcanvas");
+
+// set canvas to use webgl functions (as opposed to, say, 2D line drawing or something)
+var gl;
+try {
+    gl = canvas.getContext("webgl");
+    gl.viewportWidth = canvas.width;
+    gl.viewportHeight = canvas.height;
+    gl.clearColor(1.0, 1.0, 1.0, 1.0);
+    gl.enable(gl.DEPTH_TEST);
+	gl.enable(gl.CULL_FACE);
+ } 
+ catch (e) {
+    alert("Could not initialise WebGL.");
+ }
+
+var time = 0;
+var startTime = (new Date).getTime();
+ 
+// DEFINE OBJECT'S MATRIX, VERTEX BUFFER AND SHADER PROGRAM:
+// cube's individual transform - this is what we'll rotate (in tick()) to spin the cube
+modelMatrix = mat4.create();
+mat4.identity(modelMatrix);
+
+obj = [];
+obj.matrix = mat4.create();
+mat4.identity(obj.matrix);
+obj.matrixOrig = mat4.create();
+mat4.identity(obj.matrixOrig);
+
+obj2 = [];
+obj2.matrix = mat4.create();
+mat4.identity(obj2.matrix);
+obj2.matrixOrig = mat4.create();
+mat4.identity(obj2.matrixOrig);
+
+var vertArray = bottom_verts(); //specificed in bottom.js
+ 
+// allocate a block of GPU memory to hold the vertex array
+obj.vertexBuffer = gl.createBuffer(); 
+// make it active
+gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertexBuffer);
+// send the data
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertArray), gl.STATIC_DRAW); 
+
+// the triangles that make up the smoothed cube, as indices to vertArray. Notice the values range from 0 to 23
+var indices = bottom_indices(); //specificed in bottom.js
+			
+// GL expects ints to be ints (go figure!) and Javascript only has one number type, so...
+indices = new Uint16Array(indices);
+// allocate a block of GPU memory to hold the index array
+obj.indexBuffer = gl.createBuffer();
+// make it active
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indexBuffer);
+// send the data
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW); 
+// we'll need the number of indices for the draw call later
+obj.indexBuffer.numItems = indices.length;
+obj.textureBuffer = createTextureBuffer("bottom_color.png");
+
+var vertArray = top_verts(); //specificed in top.js
+ 
+// allocate a block of GPU memory to hold the vertex array
+obj2.vertexBuffer = gl.createBuffer(); 
+// make it active
+gl.bindBuffer(gl.ARRAY_BUFFER, obj2.vertexBuffer);
+// send the data
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertArray), gl.STATIC_DRAW); 
+
+// the triangles that make up the smoothed cube, as indices to vertArray. Notice the values range from 0 to 23
+var indices = top_indices(); //specificed in top.js
+			
+// GL expects ints to be ints (go figure!) and Javascript only has one number type, so...
+indices = new Uint16Array(indices);
+// allocate a block of GPU memory to hold the index array
+obj2.indexBuffer = gl.createBuffer();
+// make it active
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj2.indexBuffer);
+// send the data
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW); 
+// we'll need the number of indices for the draw call later
+obj2.indexBuffer.numItems = indices.length;
+obj2.textureBuffer = createTextureBuffer("top_color.png");
+
+
+
+
+// BUILD VERTEX AND FRAGMENT SHADERS, LINK TOGETHER INTO A SHADER PROGRAM:
+
+// create a vertex shader
+var vertShader = gl.createShader(gl.VERTEX_SHADER);
+// you'll almost always specify this in a separate text file
+var vertShaderStr = loadText("shaders/spot.vs");
+
+// specify the previous string as being the source code for the vertex shader
+gl.shaderSource(vertShader, vertShaderStr);
+gl.compileShader(vertShader);
+if (! gl.getShaderParameter(vertShader, gl.COMPILE_STATUS))
+    alert(gl.getShaderInfoLog(vertShader));
+  
+//create a fragment shader
+var fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+// inline shader programming is gross and only used here for instructional purposes
+var fragShaderStr = loadText("shaders/spot.fs");
+
+gl.shaderSource(fragShader, fragShaderStr);
+gl.compileShader(fragShader);
+if (! gl.getShaderParameter(fragShader, gl.COMPILE_STATUS))
+    alert(gl.getShaderInfoLog(fragShader));
+
+// create an empty shader program
+obj.shaderProgram = gl.createProgram();
+// attach and link our compiled shaders into one program
+gl.attachShader(obj.shaderProgram, vertShader);
+gl.attachShader(obj.shaderProgram, fragShader);
+gl.linkProgram(obj.shaderProgram);
+
+if (! gl.getProgramParameter(obj.shaderProgram, gl.LINK_STATUS))
+    alert("Could not initialise shaders");
+
+// find, store, and enable the attribute variables of the shader program (position, normal vector, color)
+obj.shaderProgram.vertexPositionAttribute = 
+     gl.getAttribLocation(obj.shaderProgram, "aVertexPosition");
+gl.enableVertexAttribArray(obj.shaderProgram.vertexPositionAttribute);
+
+obj.shaderProgram.vertexUVAttribute = 
+     gl.getAttribLocation(obj.shaderProgram, "aVertexUV");
+gl.enableVertexAttribArray(obj.shaderProgram.vertexUVAttribute);
+
+obj.shaderProgram.vertexNormalAttribute = 
+     gl.getAttribLocation(obj.shaderProgram, "aVertexNormal");
+gl.enableVertexAttribArray(obj.shaderProgram.vertexNormalAttribute);
+
+
+
+//find and store the uniform variables of the shader program
+obj.shaderProgram.pMatrixUniform=gl.getUniformLocation(obj.shaderProgram, "uPMatrix");
+obj.shaderProgram.vMatrixUniform=gl.getUniformLocation(obj.shaderProgram, "uVMatrix");
+obj.shaderProgram.oMatrixUniform=gl.getUniformLocation(obj.shaderProgram, "uOMatrix");
+obj.shaderProgram.colorTexUniform = gl.getUniformLocation(obj.shaderProgram, "colorMap");
+obj.shaderProgram.timeUniform=gl.getUniformLocation(obj.shaderProgram, "time");
+obj.shaderProgram.roundUniform=gl.getUniformLocation(obj.shaderProgram, "round");
+obj.shaderProgram.edgeUniform=gl.getUniformLocation(obj.shaderProgram, "edge");
+
+
+obj2.shaderProgram = obj.shaderProgram;
+
+// Set the uniform variables for the shader program. Stuff that's the same for all verts in this mesh (like textures, time, etc.)
+// in this case, it's the cube's transform, the view matrix, and the perspective matrix
+var view = mat4.create();
+mat4.identity(view);
+var cam = mat4.create();
+mat4.identity(cam);
+// move the camera 5 units back. Probably should be doing this in update :-/
+mat4.translate(cam, vec3.create([0,0,12]));
+
+// projection matrix for a perspective camera
+// projection matrix for a perspective camera
+var proj = mat4.create();
+mat4.identity(proj);
+mat4.perspective(45, 1, .1, 20, proj);
+
+function createTextureBuffer(filename){
+    var textureBuffer = gl.createTexture();
+   var image = new Image();
+   image.src = filename; //the Image object gives us image loading "for free"
+   image.onload = function() {loadTexture(gl, image, textureBuffer)}; //called when image is done loading
+     	
+   return textureBuffer;
+}
+
+function loadTexture(gl, image, textureBuffer){
+   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+   gl.bindTexture(gl.TEXTURE_2D, textureBuffer); //specify that the new texture is the current texture on which we want to operate by binding it
+   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image); //write the image data into the texture
+   //control how the image is filtered while scaling
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); //use linear filtering when scaling the image up
+   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST); //use mipmap when scaling down
+   gl.generateMipmap(gl.TEXTURE_2D);
+   gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+var mouseDown = false;
+var lastMouseX = null;
+var lastMouseY = null;
+
+function initEventHandlers(canvas)
+{
+   canvas.onmousedown = function(event) { // Mouse pressed
+	   mouseDown = true;
+	   lastMouseX = event.clientX;
+	   lastMouseY = event.clientY;
+   }
+   canvas.onmouseup = function(event) {   // Mouse released
+      mouseDown = false;
+   }
+   canvas.onmousemove = function(event) { // Mouse moved
+	   if (!mouseDown) {
+	         return;
+	       }
+       var newX = event.clientX;
+       var newY = event.clientY;
+
+       var deltaX = newX - lastMouseX;
+	   var deltaY = newY - lastMouseY;
+       var newRotationMatrix = mat4.create();
+       mat4.identity(newRotationMatrix);
+	   
+	   mat4.rotateY(newRotationMatrix, deltaX/100);
+	   mat4.rotateX(newRotationMatrix, deltaY/100);
+
+       modelMatrix = mat4.multiply(newRotationMatrix, modelMatrix);
+
+       lastMouseX = newX;
+       lastMouseY = newY;  
+   }
+   
+   canvas.onmousewheel = function(event){
+	   var d = event.wheelDelta;
+	   mat4.translate(cam, [0,0,-d/20]);
+	   
+   }
+
+}
+
+initEventHandlers(canvas);
+// END SETUP
+
+// Draw function for a single object
+function drawObject(gl, obj) {
+	   
+	  // set the active shader to the object's material
+      gl.useProgram(obj.shaderProgram);
+	  // set our object's array of verts to be active
+      gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertexBuffer);
+	  // set our object's array of indices to be active
+	  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indexBuffer);
+
+      // Explain how the vertex array is structured for the "attribute" variables in the shader
+      gl.vertexAttribPointer( obj.shaderProgram.vertexPositionAttribute, //location of attribute in shader, stored on setup
+                              3, //number of elements (x, y ,z for position)
+                              gl.FLOAT, //data type of each component in the array
+                              false, //fixed-point data values should be normalized (true) or converted directly as fixed-point values (false)
+                              8 * Float32Array.BYTES_PER_ELEMENT, //stride (9 floats total in our vertex)
+                              0 //offset for position (position is the first three floats of the nine, so no offset)
+                              );
+      gl.vertexAttribPointer( obj.shaderProgram.vertexUVAttribute,
+                              2, //number of normal vector elements (x, y, z)
+                              gl.FLOAT, 
+                              false, 
+                              8 * Float32Array.BYTES_PER_ELEMENT, //stride 
+                              3 * Float32Array.BYTES_PER_ELEMENT //offset for normal (second three floats of the nine, so offset of 3 floats)
+                              );
+      gl.vertexAttribPointer( obj.shaderProgram.vertexNormalAttribute, 
+                              3, //number of color elements (r, g, b)
+                              gl.FLOAT, 
+                              false, 
+                              8 * Float32Array.BYTES_PER_ELEMENT, //stride  
+                              5 * Float32Array.BYTES_PER_ELEMENT //offset for color (third three floats of the nine, so offset of 6 floats)
+                              );
+							  
+	  //REMEMBER: View matrix isn't the camera transform! It's the *inverse* of the camera transform.
+	  mat4.inverse(cam, view); //inverts cam, stores in view
+	  //send up the current uniform variables to their stored locations
+	  gl.uniformMatrix4fv(obj.shaderProgram.pMatrixUniform, false, proj);
+	  gl.uniformMatrix4fv(obj.shaderProgram.vMatrixUniform, false, view);
+      gl.uniformMatrix4fv(obj.shaderProgram.oMatrixUniform, false, obj.matrix);
+	  gl.activeTexture(gl.TEXTURE0);
+	  gl.bindTexture(gl.TEXTURE_2D, obj.textureBuffer);
+	  gl.uniform1i(obj.shaderProgram.colorTexUniform, 0);
+	  gl.uniform1f(obj.shaderProgram.timeUniform, time);
+    gl.uniform1f(obj.shaderProgram.roundUniform, rvalue);
+    gl.uniform1f(obj.shaderProgram.edgeUniform, dvalue);
+
+	  //finally, the actual draw call
+	  gl.drawElements(gl.TRIANGLES, obj.indexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+}
+   
+// MASTER LOOP
+var tick = function() {
+		  
+    time = ((new Date).getTime() - startTime) / 1000;
+	
+	obj.matrix = mat4.multiply(modelMatrix, obj.matrixOrig);
+	obj2.matrix = mat4.multiply(modelMatrix, obj2.matrixOrig);
+
+   	//DRAW SCENE
+    gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+	
+   	drawObject(gl, obj);
+	drawObject(gl, obj2);
+
+   	// call this function again in ~1/60th of a second
+   	requestAnimationFrame(tick);
+};
+
+// let's get started!
+tick();
+</script>
+
+</body></html>
