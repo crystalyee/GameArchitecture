@@ -24,23 +24,21 @@ const float spotExponent = 1.0;
 // superellipse parameters
 float width = 0.3;
 float height = 0.3;
-float widthEdge = e;
-float heightEdge = e;
+
 float round = r;
 
 // distance parameters
-float far = d;
 float farEdge = 0.2;
 
 
 
 
-float ellipseShape(vec3 VP, float width, float height, float widthEdge, float heightEdge, float round)
+float ellipseShape(vec3 VP, float width, float height, float e, float round)
 {
     float a = width;
     float b = height;
-    float A = width + widthEdge;
-    float B = height + heightEdge;
+    float A = width + e;
+    float B = height + e;
 
     float exp1 = 2.0 / round;
     float exp2 = -1.0 * round / 2.0;
@@ -50,9 +48,9 @@ float ellipseShape(vec3 VP, float width, float height, float widthEdge, float he
     return 1.0 - smoothstep(inner, outer, 1.0);
 }
 
-float distanceShape(float far, float farEdge, float d)
+float distanceShape(float d, float farEdge)
 {
-    return 1.0 - smoothstep(far, far + farEdge, d);
+    return 1.0 - smoothstep(d, d + farEdge, d);
 }
 
 
@@ -70,8 +68,8 @@ void main(void)
     if (nDotVP > 0.)
     {
 	
-        attenuation *= ellipseShape(VP, width, height, widthEdge, heightEdge, round);
-        attenuation *= distanceShape(far, farEdge, d);
+        attenuation *= ellipseShape(VP, width, height, e, round);
+        attenuation *= distanceShape(d, farEdge);
 
         c += attenuation * (diffuse * nDotVP); 
         nDotHV = max(0.0, dot(n, HV));
